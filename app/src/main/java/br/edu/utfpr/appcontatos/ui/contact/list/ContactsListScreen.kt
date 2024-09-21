@@ -1,8 +1,9 @@
-package br.edu.utfpr.appcontatos.ui.contact
+package br.edu.utfpr.appcontatos.ui.contact.list
 
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -34,11 +35,12 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.MutableState
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -47,6 +49,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.room.util.copy
 import br.edu.utfpr.appcontatos.R
 import br.edu.utfpr.appcontatos.data.Contact
 import br.edu.utfpr.appcontatos.data.ContactDatasource
@@ -54,47 +57,55 @@ import br.edu.utfpr.appcontatos.data.generateContacts
 import br.edu.utfpr.appcontatos.data.groupByInitial
 import br.edu.utfpr.appcontatos.ui.theme.AppContatosTheme
 import br.edu.utfpr.appcontatos.ui.utils.composables.ContactAvatar
+import br.edu.utfpr.appcontatos.ui.utils.composables.DefaultErrorContent
+import br.edu.utfpr.appcontatos.ui.utils.composables.DefaultLoadingContent
+import br.edu.utfpr.appcontatos.ui.utils.composables.FavoriteIconButton
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import kotlin.random.Random
 
 @Composable
 fun ContactsListScreen(
     modifier: Modifier = Modifier,
-    coroutineScope: CoroutineScope = rememberCoroutineScope()
+    coroutineScope: CoroutineScope = rememberCoroutineScope(),
+    onAddPressed: () -> Unit,
+    onContactPressed: (Contact) -> Unit
 ) {
-    val isInitialComposition: MutableState<Boolean> = rememberSaveable { mutableStateOf(true) }
-    val isLoading: MutableState<Boolean> = rememberSaveable { mutableStateOf(false) }
-    val hasError: MutableState<Boolean> = rememberSaveable { mutableStateOf(false) }
-    val contacts: MutableState<Map<String, List<Contact>>> = remember { mutableStateOf(mapOf()) }
+    var isInitialComposition: Boolean by rememberSaveable { mutableStateOf(true) }
+    var uiState: ContactsListUiState by remember { mutableStateOf(ContactsListUiState()) }
 
     val loadContacts: () -> Unit = {
-        isLoading.value = true
-        hasError.value = false
+        uiState = uiState.copy(
+            isLoading = true,
+            hasError = false
+        )
 
         coroutineScope.launch {
             delay(2000)
-            contacts.value = ContactDatasource.instance.findAll().groupByInitial()
-            isLoading.value = false
+            val contacts: List<Contact> = ContactDatasource.instance.findAll()
+            uiState = uiState.copy(
+                contacts = contacts.groupByInitial(),
+                isLoading = false
+            )
         }
     }
 
     val toggleFavorite: (Contact) -> Unit = { contact ->
         ContactDatasource.instance.save(contact.copy(isFavorite = !contact.isFavorite))
-        contacts.value = ContactDatasource.instance.findAll().groupByInitial()
+        val contacts: List<Contact> = ContactDatasource.instance.findAll()
+        uiState = uiState.copy(contacts = contacts.groupByInitial())
     }
 
-    if (isInitialComposition.value) {
+    if (isInitialComposition) {
         loadContacts()
-        isInitialComposition.value = false
+        isInitialComposition = false
     }
 
     val contentModifier = modifier.fillMaxSize()
-    if (isLoading.value) {
-        LoadingContent(modifier = contentModifier)
-    } else if (hasError.value) {
-        ErrorContent(
+    if (uiState.isLoading) {
+        DefaultLoadingContent(modifier = contentModifier)
+    } else if (uiState.hasError) {
+        DefaultErrorContent(
             modifier = contentModifier,
             onTryAgainPressed = loadContacts
         )
@@ -107,7 +118,7 @@ fun ContactsListScreen(
                 )
             },
             floatingActionButton = {
-                ExtendedFloatingActionButton(onClick = {}) {
+                ExtendedFloatingActionButton(onClick = onAddPressed) {
                     Icon(
                         imageVector = Icons.Filled.Add,
                         contentDescription = "Adicionar"
@@ -118,13 +129,14 @@ fun ContactsListScreen(
             }
         ) { paddingValues ->
             val defaultModifier = Modifier.padding(paddingValues)
-            if (contacts.value.isEmpty()) {
+            if (uiState.contacts.isEmpty()) {
                 EmptyList(modifier = defaultModifier)
             } else {
                 List(
                     modifier = defaultModifier,
-                    contacts = contacts.value,
-                    onFavoritePressed = toggleFavorite
+                    contacts = uiState.contacts,
+                    onFavoritePressed = toggleFavorite,
+                    onContactPressed = onContactPressed
                 )
             }
 
@@ -165,88 +177,6 @@ private fun AppBar(
 private fun AppBarPreview() {
     AppContatosTheme {
         AppBar(onRefreshPressed = {})
-    }
-}
-
-@Composable
-private fun LoadingContent(modifier: Modifier = Modifier) {
-    Column(
-        modifier = modifier.fillMaxSize(),
-        verticalArrangement = Arrangement.Center,
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        CircularProgressIndicator(
-            color = MaterialTheme.colorScheme.primary,
-            trackColor = MaterialTheme.colorScheme.surfaceVariant,
-            modifier = Modifier.size(60.dp)
-        )
-        Spacer(Modifier.size(8.dp))
-        Text(
-            text = stringResource(R.string.loading_contacts),
-            style = MaterialTheme.typography.titleLarge,
-            color = MaterialTheme.colorScheme.primary,
-        )
-    }
-}
-
-@Preview(showBackground = true, heightDp = 400)
-@Composable
-private fun LoadingContentPreview() {
-    AppContatosTheme {
-        LoadingContent()
-    }
-}
-
-@Composable
-private fun ErrorContent(
-    modifier: Modifier = Modifier,
-    onTryAgainPressed: () -> Unit
-) {
-    Column(
-        modifier = modifier.fillMaxSize(),
-        verticalArrangement = Arrangement.Center,
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        val defaultColor = MaterialTheme.colorScheme.primary
-        Icon(
-            imageVector = Icons.Filled.CloudOff,
-            contentDescription = stringResource(R.string.loading_error),
-            tint = defaultColor,
-            modifier = Modifier.size(80.dp)
-        )
-        val textPadding = PaddingValues(
-            top = 8.dp,
-            start = 8.dp,
-            end = 8.dp
-        )
-        Text(
-            modifier = Modifier.padding(textPadding),
-            text = stringResource(R.string.loading_error),
-            style = MaterialTheme.typography.titleLarge,
-            color = defaultColor
-        )
-        Text(
-            modifier = Modifier.padding(textPadding),
-            text = stringResource(R.string.wait_and_try_again),
-            style = MaterialTheme.typography.titleSmall,
-            color = defaultColor
-        )
-        ElevatedButton(
-            onClick = onTryAgainPressed,
-            modifier = Modifier.padding(top = 16.dp)
-        ) {
-            Text(stringResource(R.string.try_again))
-        }
-    }
-}
-
-@Preview(showBackground = true, heightDp = 400)
-@Composable
-private fun ErrorContentPreview() {
-    AppContatosTheme {
-        ErrorContent(
-            onTryAgainPressed = {}
-        )
     }
 }
 
@@ -292,7 +222,8 @@ private fun EmptyListPreview() {
 private fun List(
     modifier: Modifier = Modifier,
     contacts: Map<String, List<Contact>>,
-    onFavoritePressed: (Contact) -> Unit
+    onFavoritePressed: (Contact) -> Unit,
+    onContactPressed: (Contact) -> Unit
 ) {
     LazyColumn(
         modifier = modifier
@@ -315,7 +246,8 @@ private fun List(
             items(contacts) { contact ->
                 ContactListItem(
                     contact = contact,
-                    onFavoritePressed = onFavoritePressed
+                    onFavoritePressed = onFavoritePressed,
+                    onContactPressed = onContactPressed
                 )
             }
         }
@@ -327,29 +259,20 @@ private fun ContactListItem(
     modifier: Modifier = Modifier,
     contact: Contact,
     onFavoritePressed: (Contact) -> Unit,
+    onContactPressed: (Contact) -> Unit
 ) {
     ListItem(
-        modifier = modifier,
+        modifier = modifier.clickable { onContactPressed(contact) },
         headlineContent = { Text(contact.fullName) },
         leadingContent = {
             ContactAvatar(firstName = contact.firstName, lastName = contact.lastName)
         },
         trailingContent = {
-            IconButton(onClick = { onFavoritePressed(contact) }) {
-                Icon(
-                    imageVector = if (contact.isFavorite) {
-                        Icons.Filled.Favorite
-                    } else {
-                        Icons.Filled.FavoriteBorder
-                    },
-                    contentDescription = "Favoritar",
-                    tint = if (contact.isFavorite) {
-                        Color.Red
-                    } else {
-                        LocalContentColor.current
-                    }
-                )
-            }
+            FavoriteIconButton(
+                isFavorite = contact.isFavorite,
+                onPressed = { onFavoritePressed(contact) }
+            )
+
         }
     )
 }
@@ -360,7 +283,8 @@ private fun ListPreview() {
     AppContatosTheme {
         List(
             contacts = generateContacts().groupByInitial(),
-            onFavoritePressed = {}
+            onFavoritePressed = {},
+            onContactPressed = {}
         )
     }
 }
