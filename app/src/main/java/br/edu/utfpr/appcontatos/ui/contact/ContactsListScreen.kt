@@ -81,6 +81,18 @@ fun ContactsListScreen(
         }
     }
 
+    val toggleFavorite: (Contact) -> Unit = { contact ->
+        contacts.value = contacts.value.map{
+            if (it.id == contact.id) {
+                it.copy(
+                    isFavorite = !it.isFavorite
+                )
+            } else {
+                it
+            }
+        }
+    }
+
     if (isInitialComposition.value) {
         loadContacts()
         isInitialComposition.value = false
@@ -123,7 +135,8 @@ fun ContactsListScreen(
             } else {
                 List(
                     modifier = defaultModifier,
-                    contacts = contacts.value
+                    contacts = contacts.value,
+                    onFavoritePressed = toggleFavorite
                 )
             }
 
@@ -289,13 +302,14 @@ private fun EmptyListPreview() {
 @Composable
 private fun List(
     modifier: Modifier = Modifier,
-    contacts: List<Contact>
+    contacts: List<Contact>,
+    onFavoritePressed: (Contact) -> Unit
 ) {
     LazyColumn(
         modifier = modifier
     ) {
         items(contacts) { contact ->
-            ContactListItem(contact = contact)
+            ContactListItem(contact = contact, onFavoritePressed = onFavoritePressed)
         }
     }
 }
@@ -303,27 +317,23 @@ private fun List(
 @Composable
 private fun ContactListItem(
     modifier: Modifier = Modifier,
-    contact: Contact
+    contact: Contact,
+    onFavoritePressed: (Contact) -> Unit,
 ) {
-    val isFavorite: MutableState<Boolean> = rememberSaveable {
-        mutableStateOf(contact.isFavorite)
-    }
     ListItem(
         modifier = modifier,
         headlineContent = { Text(contact.fullName) },
         leadingContent = {},
         trailingContent = {
-            IconButton(onClick = {
-                isFavorite.value = !isFavorite.value
-            }) {
+            IconButton(onClick = { onFavoritePressed(contact) }) {
                 Icon(
-                    imageVector = if (isFavorite.value) {
+                    imageVector = if (contact.isFavorite) {
                         Icons.Filled.Favorite
                     } else {
                         Icons.Filled.FavoriteBorder
                     },
                     contentDescription = "Favoritar",
-                    tint = if (isFavorite.value) {
+                    tint = if (contact.isFavorite) {
                         Color.Red
                     } else {
                         LocalContentColor.current
@@ -339,7 +349,8 @@ private fun ContactListItem(
 private fun ListPreview() {
     AppContatosTheme {
         List(
-            contacts = generateContacts()
+            contacts = generateContacts(),
+            onFavoritePressed = {}
         )
     }
 }
