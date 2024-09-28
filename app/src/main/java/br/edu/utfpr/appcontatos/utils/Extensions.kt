@@ -1,17 +1,19 @@
 package br.edu.utfpr.appcontatos.utils
 
-import android.icu.text.DecimalFormat
 import java.math.BigDecimal
+import java.text.DecimalFormat
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 
-//46988887777
-//(46) 98888-7777
-fun String.toFormattedPhone(): String = this.mapIndexed { index, char ->
+//55988887777
+//(55) 98888-7777
+//5588887777
+//(55) 8888-7777
+fun String.toFormattedPhone(): String = mapIndexed { index, char ->
     when {
         index == 0 -> "($char"
         index == 2 -> ") $char"
-        (index == 6 && length < 11 ) ||
+        (index == 6 && length < 11) ||
                 (index == 7 && length == 11) -> "-$char"
         else -> char
     }

@@ -20,9 +20,11 @@ class ContactDatasource private constructor() {
     fun findById(id: Int): Contact? = contacts.firstOrNull { it.id == id }
 
     fun save(contact: Contact): Contact = if (contact.id > 0) {
+        // atualizar
         val index: Int = contacts.indexOfFirst { it.id == contact.id }
         contact.also { contacts[index] = it }
     } else {
+        // inserir
         val maxId: Int = contacts.maxBy { it.id }.id
         contact.copy(id = maxId + 1).also { contacts.add(it) }
     }

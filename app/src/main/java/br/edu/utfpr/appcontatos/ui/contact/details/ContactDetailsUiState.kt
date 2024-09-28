@@ -8,5 +8,5 @@ data class ContactDetailsUiState(
     val contact: Contact = Contact(),
     val showConfirmationDialog: Boolean = false,
     val isDeleting: Boolean = false,
-    val hasErrorDeleting: Boolean = false,
+    val hasErrorDeleting: Boolean = false
 )

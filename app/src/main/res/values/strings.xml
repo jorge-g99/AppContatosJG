@@ -27,4 +27,16 @@
     <string name="editar_contato">Editar Contato</string>
     <string name="salvar">Salvar</string>
     <string name="selecionar_a_data">Selecionar a data</string>
+    <string name="nome">Nome</string>
+    <string name="sobrenome">Sobrenome</string>
+    <string name="telefone">Telefone</string>
+    <string name="email_invalido">Email Inválido</string>
+    <string name="telefone_invalido">Telefone Inválido</string>
+    <string name="nome_obrigatorio">Nome Obrigatório</string>
+    <string name="selecione_a_data">Selecione a Data</string>
+    <string name="ok">Ok</string>
+    <string name="birth_date">Data de Aniversário</string>
+    <string name="favorito">Favorito</string>
+    <string name="personal">Pessoal</string>
+    <string name="professional">Profissional</string>
 </resources>
