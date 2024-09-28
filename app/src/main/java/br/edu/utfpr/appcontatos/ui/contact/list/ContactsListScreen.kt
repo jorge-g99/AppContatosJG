@@ -7,7 +7,6 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -17,42 +16,28 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.CloudOff
-import androidx.compose.material.icons.filled.Favorite
-import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.ElevatedButton
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
-import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import androidx.room.util.copy
+import androidx.lifecycle.viewmodel.compose.viewModel
 import br.edu.utfpr.appcontatos.R
 import br.edu.utfpr.appcontatos.data.Contact
-import br.edu.utfpr.appcontatos.data.ContactDatasource
 import br.edu.utfpr.appcontatos.data.generateContacts
 import br.edu.utfpr.appcontatos.data.groupByInitial
 import br.edu.utfpr.appcontatos.ui.theme.AppContatosTheme
@@ -60,61 +45,31 @@ import br.edu.utfpr.appcontatos.ui.utils.composables.ContactAvatar
 import br.edu.utfpr.appcontatos.ui.utils.composables.DefaultErrorContent
 import br.edu.utfpr.appcontatos.ui.utils.composables.DefaultLoadingContent
 import br.edu.utfpr.appcontatos.ui.utils.composables.FavoriteIconButton
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
 
 @Composable
 fun ContactsListScreen(
     modifier: Modifier = Modifier,
-    coroutineScope: CoroutineScope = rememberCoroutineScope(),
     onAddPressed: () -> Unit,
-    onContactPressed: (Contact) -> Unit
+    onContactPressed: (Contact) -> Unit,
+    viewModel: ContactsListViewModel = viewModel()
 ) {
-    var isInitialComposition: Boolean by rememberSaveable { mutableStateOf(true) }
-    var uiState: ContactsListUiState by remember { mutableStateOf(ContactsListUiState()) }
-
-    val loadContacts: () -> Unit = {
-        uiState = uiState.copy(
-            isLoading = true,
-            hasError = false
-        )
-
-        coroutineScope.launch {
-            delay(2000)
-            val contacts: List<Contact> = ContactDatasource.instance.findAll()
-            uiState = uiState.copy(
-                contacts = contacts.groupByInitial(),
-                isLoading = false
-            )
-        }
-    }
-
-    val toggleFavorite: (Contact) -> Unit = { contact ->
-        ContactDatasource.instance.save(contact.copy(isFavorite = !contact.isFavorite))
-        val contacts: List<Contact> = ContactDatasource.instance.findAll()
-        uiState = uiState.copy(contacts = contacts.groupByInitial())
-    }
-
-    if (isInitialComposition) {
-        loadContacts()
-        isInitialComposition = false
-    }
-
     val contentModifier = modifier.fillMaxSize()
-    if (uiState.isLoading) {
-        DefaultLoadingContent(modifier = contentModifier)
-    } else if (uiState.hasError) {
+    if (viewModel.uiState.isLoading) {
+        DefaultLoadingContent(
+            modifier = contentModifier,
+            text = stringResource(R.string.loading_contacts)
+        )
+    } else if (viewModel.uiState.hasError) {
         DefaultErrorContent(
             modifier = contentModifier,
-            onTryAgainPressed = loadContacts
+            onTryAgainPressed = viewModel::loadContacts
         )
     } else {
         Scaffold(
             modifier = modifier.fillMaxSize(),
             topBar = {
                 AppBar(
-                    onRefreshPressed = loadContacts
+                    onRefreshPressed = viewModel::loadContacts
                 )
             },
             floatingActionButton = {
@@ -129,21 +84,18 @@ fun ContactsListScreen(
             }
         ) { paddingValues ->
             val defaultModifier = Modifier.padding(paddingValues)
-            if (uiState.contacts.isEmpty()) {
+            if (viewModel.uiState.contacts.isEmpty()) {
                 EmptyList(modifier = defaultModifier)
             } else {
                 List(
                     modifier = defaultModifier,
-                    contacts = uiState.contacts,
-                    onFavoritePressed = toggleFavorite,
+                    contacts = viewModel.uiState.contacts,
+                    onFavoritePressed = viewModel::toggleFavorite,
                     onContactPressed = onContactPressed
                 )
             }
-
         }
     }
-
-
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -231,7 +183,9 @@ private fun List(
         contacts.forEach { (initial, contacts) ->
             stickyHeader {
                 Box(
-                    modifier = Modifier.fillMaxWidth().background(color = MaterialTheme.colorScheme.secondaryContainer)
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(color = MaterialTheme.colorScheme.secondaryContainer)
                 ) {
                     Text(
                         text = initial,
@@ -265,14 +219,16 @@ private fun ContactListItem(
         modifier = modifier.clickable { onContactPressed(contact) },
         headlineContent = { Text(contact.fullName) },
         leadingContent = {
-            ContactAvatar(firstName = contact.firstName, lastName = contact.lastName)
+            ContactAvatar(
+                firstName = contact.firstName,
+                lastName = contact.lastName
+            )
         },
         trailingContent = {
             FavoriteIconButton(
                 isFavorite = contact.isFavorite,
                 onPressed = { onFavoritePressed(contact) }
             )
-
         }
     )
 }
@@ -288,15 +244,3 @@ private fun ListPreview() {
         )
     }
 }
-
-
-
-
-
-
-
-
-
-
-
-

@@ -1,6 +1,5 @@
 package br.edu.utfpr.appcontatos.ui.contact.details
 
-import android.graphics.drawable.Icon
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -12,12 +11,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Email
-import androidx.compose.material.icons.filled.Favorite
-import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.Phone
 import androidx.compose.material.icons.filled.Sms
 import androidx.compose.material.icons.filled.Videocam
@@ -33,11 +29,14 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -48,12 +47,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import br.edu.utfpr.appcontatos.R
 import br.edu.utfpr.appcontatos.data.Contact
 import br.edu.utfpr.appcontatos.data.ContactDatasource
-import br.edu.utfpr.appcontatos.data.groupByInitial
 import br.edu.utfpr.appcontatos.ui.theme.AppContatosTheme
 import br.edu.utfpr.appcontatos.ui.utils.composables.ContactAvatar
 import br.edu.utfpr.appcontatos.ui.utils.composables.DefaultErrorContent
@@ -63,6 +62,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.time.format.DateTimeFormatter
+import kotlin.random.Random
 
 @Composable
 fun ContactDetailsScreen(
@@ -71,7 +71,8 @@ fun ContactDetailsScreen(
     coroutineScope: CoroutineScope = rememberCoroutineScope(),
     onBackPressed: () -> Unit,
     onEditPressed: () -> Unit,
-    onContactDeleted: () -> Unit
+    onContactDeleted: () -> Unit,
+    snackbarHostState: SnackbarHostState = remember { SnackbarHostState() }
 ) {
     var isInitialComposition: Boolean by rememberSaveable {
         mutableStateOf(true)
@@ -107,16 +108,44 @@ fun ContactDetailsScreen(
         isInitialComposition = false
     }
 
+    LaunchedEffect(snackbarHostState, uiState.hasErrorDeleting) {
+        if (uiState.hasErrorDeleting) {
+            snackbarHostState.showSnackbar(
+                "Ocorreu um erro ao tentar excluir o contato." +
+                        " Aguarde um momento e tente novamente"
+            )
+        }
+    }
+
     if (uiState.showConfirmationDialog) {
         ConfirmationDialog(
-            content = "Esse contato será removido permanentemente",
+            content = stringResource(R.string.confirmar_remover_contato),
             onDismiss = {
-                uiState = uiState.copy( showConfirmationDialog = false )
+                uiState = uiState.copy(showConfirmationDialog = false)
             },
             onConfirm = {
-                uiState = uiState.copy( showConfirmationDialog = false )
-                ContactDatasource.instance.delete(uiState.contact)
-                onContactDeleted()
+                uiState = uiState.copy(
+                    showConfirmationDialog = false,
+                    isDeleting = true,
+                    hasErrorDeleting = false
+                )
+                coroutineScope.launch {
+                    delay(2000)
+                    val hasError = Random.nextBoolean()
+                    uiState = if (hasError) {
+                        uiState.copy(
+                            isDeleting = false,
+                            hasErrorDeleting = true
+                        )
+                    } else {
+                        ContactDatasource.instance.delete(uiState.contact)
+                        onContactDeleted()
+                        uiState.copy(
+                            isDeleting = false,
+                            hasErrorDeleting = false
+                        )
+                    }
+                }
             }
         )
     }
@@ -132,22 +161,23 @@ fun ContactDetailsScreen(
     } else {
         Scaffold(
             modifier = contentModifier,
+            snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
             topBar = {
                 AppBar(
-                    isDeleting = false,
+                    isDeleting = uiState.isDeleting,
                     contact = uiState.contact,
                     onBackPressed = onBackPressed,
                     onDeletePressed = {
-                        uiState = uiState.copy(
-                            showConfirmationDialog = true
-                        )
+                        uiState = uiState.copy(showConfirmationDialog = true)
                     },
                     onEditPressed = onEditPressed,
                     onFavoritePressed = {
                         val updatedContact = uiState.contact.copy(
-                            isFavorite=!uiState.contact.isFavorite
+                            isFavorite = !uiState.contact.isFavorite
                         )
-                        uiState = uiState.copy(contact = ContactDatasource.instance.save(updatedContact))
+                        uiState = uiState.copy(
+                            contact = ContactDatasource.instance.save(updatedContact)
+                        )
                     }
                 )
             }
@@ -174,6 +204,7 @@ private fun AppBar(
     onFavoritePressed: () -> Unit
 ) {
     TopAppBar(
+        modifier = modifier.fillMaxWidth(),
         title = { Text("") },
         colors = TopAppBarDefaults.topAppBarColors(
             titleContentColor = MaterialTheme.colorScheme.primary,
@@ -181,7 +212,7 @@ private fun AppBar(
             navigationIconContentColor = MaterialTheme.colorScheme.primary
         ),
         navigationIcon = {
-            IconButton(onClick = onBackPressed ) {
+            IconButton(onClick = onBackPressed) {
                 Icon(
                     imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                     contentDescription = stringResource(R.string.voltar)
@@ -197,7 +228,7 @@ private fun AppBar(
                     strokeWidth = 2.dp
                 )
             } else {
-                IconButton(onClick = onEditPressed ) {
+                IconButton(onClick = onEditPressed) {
                     Icon(
                         imageVector = Icons.Filled.Edit,
                         contentDescription = stringResource(R.string.editar)
@@ -207,7 +238,7 @@ private fun AppBar(
                     isFavorite = contact.isFavorite,
                     onPressed = onFavoritePressed
                 )
-                IconButton(onClick = onDeletePressed ) {
+                IconButton(onClick = onDeletePressed) {
                     Icon(
                         imageVector = Icons.Filled.Delete,
                         contentDescription = stringResource(R.string.excluir)
@@ -220,7 +251,7 @@ private fun AppBar(
 
 @Preview(showBackground = true)
 @Composable
-fun AppBarPreview() {
+private fun AppBarPreview() {
     AppContatosTheme {
         AppBar(
             isDeleting = false,
@@ -235,7 +266,7 @@ fun AppBarPreview() {
 
 @Preview(showBackground = true)
 @Composable
-fun AppBarPreviewDeleting() {
+private fun AppBarDeletingPreview() {
     AppContatosTheme {
         AppBar(
             isDeleting = true,
@@ -248,8 +279,23 @@ fun AppBarPreviewDeleting() {
     }
 }
 
+@Preview(showBackground = true)
 @Composable
-fun ContactDetails(
+private fun AppBarIsFavoritePreview() {
+    AppContatosTheme {
+        AppBar(
+            isDeleting = false,
+            contact = Contact(isFavorite = true),
+            onBackPressed = {},
+            onEditPressed = {},
+            onFavoritePressed = {},
+            onDeletePressed = {}
+        )
+    }
+}
+
+@Composable
+private fun ContactDetails(
     modifier: Modifier = Modifier,
     contact: Contact,
     isDeleting: Boolean,
@@ -285,13 +331,13 @@ fun ContactDetails(
             )
             QuickAction(
                 imageVector = Icons.Filled.Sms,
-                text = stringResource(R.string.msg),
+                text = stringResource(R.string.texto),
                 onPressed = {},
                 enabled = contact.phoneNumber.isNotBlank() && !isDeleting
             )
             QuickAction(
                 imageVector = Icons.Filled.Videocam,
-                text = stringResource(R.string.v_deo),
+                text = stringResource(R.string.video),
                 onPressed = {},
                 enabled = contact.phoneNumber.isNotBlank() && !isDeleting
             )
@@ -310,23 +356,25 @@ fun ContactDetails(
             Text(
                 modifier = Modifier.padding(all = 16.dp),
                 text = "Informações de contato",
-                style = MaterialTheme.typography.bodyMedium
+                style = MaterialTheme.typography.bodyMedium.copy(
+                    fontWeight = FontWeight.SemiBold
+                )
             )
             ContactInfo(
                 imageVector = Icons.Outlined.Phone,
                 value = contact.phoneNumber.ifBlank {
-                    "Adicionar numero de telefone"
+                    "Adicionar número de telefone"
                 },
                 enabled = contact.phoneNumber.isBlank() && !isDeleting,
-                onPressed = {}
+                onPressed = onEditPressed
             )
             ContactInfo(
                 imageVector = Icons.Outlined.Email,
                 value = contact.email.ifBlank {
-                    "Adicionar email"
+                    "Adicionar e-mail"
                 },
                 enabled = contact.email.isBlank() && !isDeleting,
-                onPressed = {}
+                onPressed = onEditPressed
             )
             Spacer(Modifier.size(8.dp))
         }
@@ -347,31 +395,34 @@ private fun ContactDetailsPreview() {
     AppContatosTheme {
         ContactDetails(
             contact = Contact(
-                firstName = "Jorge",
-                lastName = "Rodrigues"
+                firstName = "João",
+                lastName = "Guilherme"
             ),
-            isDeleting = true,
+            isDeleting = false,
             onEditPressed = {}
         )
     }
 }
 
 @Composable
-fun QuickAction(
+private fun QuickAction(
     modifier: Modifier = Modifier,
     imageVector: ImageVector,
     text: String,
-    onPressed: ()-> Unit,
-    enabled: Boolean
+    onPressed: () -> Unit,
+    enabled: Boolean = true
 ) {
     Column(
         modifier = modifier,
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        FilledIconButton(onClick = {}) {
+        FilledIconButton(
+            enabled = enabled,
+            onClick = onPressed
+        ) {
             Icon(
                 imageVector = imageVector,
-                contentDescription = text
+                contentDescription = text,
             )
         }
         Text(
@@ -390,17 +441,17 @@ private fun ContactInfo(
     onPressed: () -> Unit
 ) {
     Row(
-        modifier = Modifier
+        modifier = modifier
             .padding(all = 16.dp)
             .fillMaxWidth()
             .clickable(
-                enabled = true,
-                onClick = {}
+                enabled = enabled,
+                onClick = onPressed
             ),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Icon(
-
+            modifier = Modifier.size(16.dp),
             imageVector = imageVector,
             contentDescription = value
         )
@@ -425,7 +476,7 @@ private fun ConfirmationDialog(
         title = title?.let {
             { Text(it) }
         },
-        text = { Text(content)},
+        text = { Text(content) },
         onDismissRequest = onDismiss,
         confirmButton = {
             TextButton(onClick = onConfirm) {
@@ -440,15 +491,15 @@ private fun ConfirmationDialog(
     )
 }
 
-@Preview
+@Preview(showBackground = true)
 @Composable
 private fun ConfirmationDialogPreview() {
     AppContatosTheme {
         ConfirmationDialog(
             title = "Atenção",
-            content = "Testando",
-            onConfirm = {},
-            onDismiss = {}
+            content = "Essa operação não poderá ser desfeita. Deseja continuar?",
+            onDismiss = {},
+            onConfirm = {}
         )
     }
 }

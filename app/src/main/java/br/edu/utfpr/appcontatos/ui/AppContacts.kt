@@ -2,6 +2,7 @@ package br.edu.utfpr.appcontatos.ui
 
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
@@ -16,7 +17,7 @@ private object Screens {
     const val CONTACT_DETAILS = "contactDetails"
 }
 
-private object Arguments {
+object Arguments {
     const val CONTACT_ID = "contactId"
 }
 
@@ -29,12 +30,12 @@ private object Routes {
 fun AppContacts(
     modifier: Modifier = Modifier,
     navController: NavHostController = rememberNavController(),
-    startDestination: String = Routes.CONTACTS_LIST
+    startDestination: String = Screens.CONTACTS_LIST
 ) {
     NavHost(
         modifier = modifier,
         navController = navController,
-        startDestination = startDestination,
+        startDestination = startDestination
     ) {
         composable(route = Routes.CONTACTS_LIST) {
             ContactsListScreen(
@@ -60,9 +61,17 @@ fun AppContacts(
                 },
                 onEditPressed = {},
                 onContactDeleted = {
-                    navController.popBackStack()
+                    navigateToList(navController)
                 }
             )
+        }
+    }
+}
+
+private fun navigateToList(navController: NavHostController) {
+    navController.navigate(Screens.CONTACTS_LIST) {
+        popUpTo(navController.graph.findStartDestination().id) {
+            inclusive = true
         }
     }
 }

@@ -16,7 +16,15 @@
     <string name="msg">Msg</string>
     <string name="v_deo">Vídeo</string>
     <string name="email">Email</string>
+    <string name="texto">Texto</string>
+    <string name="video">Vídeo</string>
     <string name="carregando">Carregando</string>
     <string name="confirmar">Confirmar</string>
     <string name="cancelar">Cancelar</string>
+    <string name="confirmar_remover_contato">Esse contato será removido permanemtente.</string>
+    <string name="error_saving">Ocorreu um erro ao salvar. Aguarde um momento e tente novamente</string>
+    <string name="novo_contato">Novo Contato</string>
+    <string name="editar_contato">Editar Contato</string>
+    <string name="salvar">Salvar</string>
+    <string name="selecionar_a_data">Selecionar a data</string>
 </resources>
